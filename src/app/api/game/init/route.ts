@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import { db } from '@/lib/db';
-import { generateTeamPlayers, leagueTeams, leagueNames } from '@/lib/game-data';
+import { generateTeamPlayers, leagueTeams, leagueNames, generatePlayerName, generatePlayerStats, generatePlayerValue, generateNationality } from '@/lib/game-data';
+
+const achievementSeeds = [
+  { key: 'first_win', title: 'أول فوز', description: 'افز مباراة واحدة', icon: '🏆', category: 'match', target: 1, reward: 50000 },
+  { key: 'title_maker', title: 'صانع الألقاب', description: 'افز 10 مباريات', icon: '🥇', category: 'match', target: 10, reward: 200000 },
+  { key: 'smart_investor', title: 'المستثمر الذكي', description: 'اشترِ 5 لاعبين من السوق', icon: '💰', category: 'transfer', target: 5, reward: 100000 },
+  { key: 'discoverer', title: 'المكتشف', description: 'اكتشف 3 لاعبين عبر الكشافة', icon: '🔍', category: 'transfer', target: 3, reward: 75000 },
+  { key: 'expert_trainer', title: 'المدرب الخبير', description: 'درّب اللاعبين 20 مرة', icon: '🏋️', category: 'training', target: 20, reward: 150000 },
+  { key: 'empire_builder', title: 'باني الإمبراطورية', description: 'طوّر الملعب إلى المستوى 5', icon: '🏟️', category: 'career', target: 5, reward: 200000 },
+  { key: 'league_top_scorer', title: 'هداف الدوري', description: 'سجّل 50 هدفاً في الدوري', icon: '⚽', category: 'league', target: 50, reward: 300000 },
+  { key: 'riser', title: 'الصاعد', description: 'تأهل إلى دوري أعلى', icon: '📈', category: 'league', target: 1, reward: 500000 },
+  { key: 'football_legend', title: 'أسطورة كرة القدم', description: 'صل إلى المستوى 10', icon: '👑', category: 'career', target: 10, reward: 1000000 },
+  { key: 'financial_manager', title: 'المدير المالي', description: 'اكسب 10 ملايين عملة', icon: '💼', category: 'career', target: 10000000, reward: 250000 },
+];
 
 export async function POST() {
   try {
@@ -126,10 +139,9 @@ export async function POST() {
       const positions = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
       const position = positions[Math.floor(Math.random() * positions.length)];
       const overall = 55 + Math.floor(Math.random() * 30);
-      const { generatePlayerName: gpn, generatePlayerStats: gps, generatePlayerValue: gpv } = await import('@/lib/game-data');
-      const name = gpn();
-      const stats = gps(position, overall);
-      const value = gpv(overall, 20 + Math.floor(Math.random() * 10));
+      const name = generatePlayerName();
+      const stats = generatePlayerStats(position, overall);
+      const value = generatePlayerValue(overall, 20 + Math.floor(Math.random() * 10));
 
       await db.transferListing.create({
         data: {
@@ -143,6 +155,79 @@ export async function POST() {
         },
       });
     }
+
+    // Seed achievements
+    const existingAchievements = await db.achievement.count();
+    if (existingAchievements === 0) {
+      await db.achievement.createMany({
+        data: achievementSeeds.map(a => ({
+          key: a.key,
+          title: a.title,
+          description: a.description,
+          icon: a.icon,
+          category: a.category,
+          target: a.target,
+          reward: a.reward,
+        })),
+      });
+    }
+
+    // Generate initial scout reports
+    const positions = ['GK', 'CB', 'LB', 'RB', 'CDM', 'CM', 'CAM', 'LW', 'RW', 'ST'];
+    for (let i = 0; i < 4; i++) {
+      const position = positions[Math.floor(Math.random() * positions.length)];
+      const overall = 55 + Math.floor(Math.random() * 25);
+      const potential = Math.min(99, overall + Math.floor(Math.random() * 12) + 3);
+      const age = 18 + Math.floor(Math.random() * 14);
+
+      await db.scoutReport.create({
+        data: {
+          playerName: generatePlayerName(),
+          position,
+          overall,
+          potential,
+          nationality: generateNationality(),
+          age,
+          askingPrice: Math.round(generatePlayerValue(overall, age) * (1.1 + Math.random() * 0.3)),
+          scoutRating: Math.min(5, Math.max(1, Math.floor(Math.random() * 3) + 3)),
+          expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+        },
+      });
+    }
+
+    // Generate welcome news articles
+    await db.newsArticle.createMany({
+      data: [
+        {
+          title: 'مرحباً بك في مدير كرة القدم! 🎉',
+          content: 'أنشئ فريقك وابدأ رحلتك نحو المجد! درّب لاعبيك، خطط لاستراتيجيتك، وقود فريقك نحو البطولات.',
+          category: 'general',
+          imageEmoji: '🎉',
+          isRead: false,
+        },
+        {
+          title: 'سوق الانتقالات مفتوح! 📝',
+          content: 'تم فتح سوق الانتقالات! اكتشف لاعبين جدد وعزّز فريقك بالنجوم. استخدم الكشافة للعثور على المواهب المخفية.',
+          category: 'transfer',
+          imageEmoji: '📝',
+          isRead: false,
+        },
+        {
+          title: 'الموسم الجديد يبدأ! ⚽',
+          content: 'انطلق الموسم الجديد من الدوري! استعد جيداً واختار التشكيلة المثالية لمواجهة الخصوم.',
+          category: 'league',
+          imageEmoji: '⚽',
+          isRead: false,
+        },
+        {
+          title: 'نصائح للمدربين الجدد 💡',
+          content: 'ركز على تطوير الشباب، حافظ على توازن الرواتب، واستخدم الكشافة بذكاء. الفرق العظيمة تُبنى خطوة بخطوة!',
+          category: 'general',
+          imageEmoji: '💡',
+          isRead: false,
+        },
+      ],
+    });
 
     return NextResponse.json({ message: 'initialized' });
   } catch (error) {

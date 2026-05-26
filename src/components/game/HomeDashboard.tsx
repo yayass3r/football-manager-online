@@ -13,6 +13,12 @@ export function HomeDashboard() {
   const leagueStandings = useGameStore((s) => s.leagueStandings);
   const setView = useGameStore((s) => s.setView);
   const currentMatchDay = useGameStore((s) => s.currentMatchDay);
+  const totalMatchDays = useGameStore((s) => s.totalMatchDays);
+  const canClaimReward = useGameStore((s) => s.canClaimReward);
+  const currentRewardDay = useGameStore((s) => s.currentRewardDay);
+  const news = useGameStore((s) => s.news);
+  const achievements = useGameStore((s) => s.achievements);
+  const teamChemistry = useGameStore((s) => s.teamChemistry);
 
   if (!manager || !team) return null;
 
@@ -44,6 +50,25 @@ export function HomeDashboard() {
 
   // Top players
   const topPlayers = [...players].sort((a, b) => b.overall - a.overall).slice(0, 5);
+
+  // Next achievement to unlock
+  const nextAchievement = achievements
+    .filter(a => !a.isCompleted)
+    .sort((a, b) => {
+      const aProgress = a.target > 0 ? a.progress / a.target : 0;
+      const bProgress = b.target > 0 ? b.progress / b.target : 0;
+      return bProgress - aProgress;
+    })[0];
+
+  // Latest news
+  const latestNews = news.slice(0, 3);
+
+  // Season progress
+  const seasonProgress = totalMatchDays > 0 ? Math.round((currentMatchDay / totalMatchDays) * 100) : 0;
+
+  // Chemistry color
+  const chemistryColor = teamChemistry >= 75 ? 'text-emerald-400' : teamChemistry >= 50 ? 'text-amber-400' : 'text-red-400';
+  const chemistryBg = teamChemistry >= 75 ? 'bg-emerald-500' : teamChemistry >= 50 ? 'bg-amber-500' : 'bg-red-500';
 
   return (
     <div className="space-y-4 pb-4">
@@ -98,6 +123,60 @@ export function HomeDashboard() {
         </CardContent>
       </Card>
 
+      {/* Daily Reward + Chemistry Row */}
+      <div className="grid grid-cols-2 gap-2">
+        {/* Daily Reward Card */}
+        <Card 
+          className={`cursor-pointer transition-all ${canClaimReward ? 'animate-pulse-glow border-emerald-500/50' : 'bg-slate-800/80 border-slate-700'}`}
+          onClick={() => setView('daily-rewards')}
+          style={canClaimReward ? { background: 'linear-gradient(135deg, #05966930, #10b98130)' } : {}}
+        >
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl mb-1">{canClaimReward ? '🎁' : '✅'}</div>
+            <div className={`font-bold text-sm ${canClaimReward ? 'text-emerald-400' : 'text-slate-400'}`}>
+              {canClaimReward ? 'مكافأة جاهزة!' : 'مكافأة اليوم'}
+            </div>
+            <div className="text-slate-500 text-[10px]">يوم {currentRewardDay}</div>
+          </CardContent>
+        </Card>
+
+        {/* Team Chemistry Card */}
+        <Card className="bg-slate-800/80 border-slate-700">
+          <CardContent className="p-3 text-center">
+            <div className="text-2xl mb-1">🧪</div>
+            <div className={`font-bold text-sm ${chemistryColor}`}>{teamChemistry}%</div>
+            <div className="text-slate-500 text-[10px]">تجانس الفريق</div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Season Progress */}
+      <Card className="bg-slate-800/80 border-slate-700">
+        <CardContent className="p-3">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-white font-bold text-sm">📅 تقدم الموسم</span>
+            <span className="text-emerald-400 text-xs font-bold">الجولة {currentMatchDay}/{totalMatchDays}</span>
+          </div>
+          <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+              style={{ width: `${seasonProgress}%` }}
+            />
+          </div>
+          <div className="flex justify-between mt-1">
+            <span className="text-slate-500 text-[10px]">{seasonProgress}% مكتمل</span>
+            {currentMatchDay > totalMatchDays && (
+              <button
+                onClick={() => setView('season-summary')}
+                className="text-amber-400 text-[10px] font-bold hover:text-amber-300"
+              >
+                إنهاء الموسم →
+              </button>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Quick Stats */}
       <div className="grid grid-cols-4 gap-2">
         {[
@@ -142,6 +221,88 @@ export function HomeDashboard() {
             >
               🏟️ خوض المباراة
             </Button>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Daily Reward Claim Card (prominent if unclaimed) */}
+      {canClaimReward && (
+        <Card
+          className="border-0 overflow-hidden cursor-pointer animate-slide-up"
+          style={{ background: 'linear-gradient(135deg, #059669, #10b981)' }}
+          onClick={() => setView('daily-rewards')}
+        >
+          <CardContent className="p-4">
+            <div className="flex items-center gap-3">
+              <div className="text-4xl animate-bounce">🎁</div>
+              <div className="flex-1">
+                <h3 className="text-white font-bold">مكافأتك اليومية جاهزة!</h3>
+                <p className="text-white/70 text-sm">اضغط لاستلام مكافأة اليوم</p>
+              </div>
+              <div className="text-white text-lg">←</div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Latest News Preview */}
+      {latestNews.length > 0 && (
+        <Card className="bg-slate-800/80 border-slate-700">
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="text-white font-bold">📰 آخر الأخبار</h3>
+              <Button variant="ghost" size="sm" className="text-emerald-400" onClick={() => setView('news')}>
+                الكل ←
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {latestNews.map((article) => (
+                <div
+                  key={article.id}
+                  className="flex items-center gap-2 bg-slate-900/50 rounded-lg p-2 cursor-pointer hover:bg-slate-700/50"
+                  onClick={() => setView('news')}
+                >
+                  <span className="text-lg">{article.imageEmoji || '📰'}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-white text-xs font-medium truncate">{article.title}</div>
+                  </div>
+                  {!article.isRead && <span className="w-2 h-2 bg-emerald-400 rounded-full shrink-0" />}
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Next Achievement */}
+      {nextAchievement && (
+        <Card className="bg-slate-800/80 border-slate-700 cursor-pointer" onClick={() => setView('achievements')}>
+          <CardContent className="p-4">
+            <div className="flex justify-between items-center mb-2">
+              <h3 className="text-white font-bold">🏅 الإنجاز القادم</h3>
+              <Button variant="ghost" size="sm" className="text-emerald-400">الكل ←</Button>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-slate-700/50 flex items-center justify-center text-xl">
+                {nextAchievement.icon}
+              </div>
+              <div className="flex-1">
+                <div className="text-white text-sm font-bold">{nextAchievement.title}</div>
+                <div className="text-slate-400 text-xs">{nextAchievement.description}</div>
+                <div className="mt-1">
+                  <div className="flex justify-between text-[10px] mb-0.5">
+                    <span className="text-slate-500">{nextAchievement.progress}/{nextAchievement.target}</span>
+                    <span className="text-slate-500">{Math.round((nextAchievement.progress / nextAchievement.target) * 100)}%</span>
+                  </div>
+                  <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
+                      style={{ width: `${Math.min(100, (nextAchievement.progress / nextAchievement.target) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

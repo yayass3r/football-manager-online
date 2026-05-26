@@ -156,6 +156,46 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // Create daily rewards for the new manager
+    const weeklyRewards = [
+      { day: 1, coins: 100000, gems: 5 },
+      { day: 2, coins: 150000, gems: 8 },
+      { day: 3, coins: 200000, gems: 10 },
+      { day: 4, coins: 250000, gems: 12 },
+      { day: 5, coins: 300000, gems: 15 },
+      { day: 6, coins: 400000, gems: 20 },
+      { day: 7, coins: 500000, gems: 30 },
+    ];
+    await db.dailyReward.createMany({
+      data: weeklyRewards.map(r => ({
+        managerId: manager.id,
+        day: r.day,
+        coins: r.coins,
+        gems: r.gems,
+        isClaimed: false,
+      })),
+    });
+
+    // Create welcome news
+    await db.newsArticle.createMany({
+      data: [
+        {
+          title: `${teamName} ينضم للدوري! 🆕`,
+          content: `أعلن نادي ${teamName} عن انضمامه للدوري برئاسة المدرب ${username}. يطمح الفريق لتحقيق نتائج إيجابية في موسمه الأول.`,
+          category: 'general',
+          imageEmoji: '🆕',
+          isRead: false,
+        },
+        {
+          title: 'سوق الانتقالات مفتوح! 📝',
+          content: 'تم فتح سوق الانتقالات! تصفح اللاعبين المتاحين وعزّز فريقك. يمكنك أيضاً استخدام الكشافة لاكتشاف المواهب المخفية.',
+          category: 'transfer',
+          imageEmoji: '📝',
+          isRead: false,
+        },
+      ],
+    });
+
     return NextResponse.json({
       manager: {
         id: manager.id,

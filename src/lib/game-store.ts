@@ -2,7 +2,8 @@ import { create } from 'zustand';
 
 export type GameView = 
   | 'home' | 'create-team' | 'squad' | 'tactics' | 'transfers' 
-  | 'match' | 'league' | 'training' | 'stadium' | 'settings';
+  | 'match' | 'league' | 'training' | 'stadium' | 'settings'
+  | 'daily-rewards' | 'achievements' | 'scout' | 'news' | 'season-summary';
 
 export interface ManagerState {
   id: string;
@@ -139,6 +140,71 @@ export interface LiveMatchData {
   };
 }
 
+export interface DailyRewardState {
+  id: string;
+  day: number;
+  coins: number;
+  gems: number;
+  isClaimed: boolean;
+  claimedAt: string | null;
+}
+
+export interface AchievementState {
+  id: string;
+  key: string;
+  title: string;
+  description: string;
+  icon: string;
+  category: string;
+  target: number;
+  reward: number;
+  progress: number;
+  isCompleted: boolean;
+  completedAt: string | null;
+  managerAchievementId: string | null;
+  isClaimed: boolean;
+}
+
+export interface ScoutReportState {
+  id: string;
+  playerName: string;
+  position: string;
+  overall: number;
+  potential: number;
+  nationality: string;
+  age: number;
+  askingPrice: number;
+  scoutRating: number;
+  createdAt: string;
+  expiresAt: string;
+}
+
+export interface NewsArticleState {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  imageEmoji: string;
+  isRead: boolean;
+  createdAt: string;
+}
+
+export interface SeasonHistoryState {
+  id: string;
+  season: number;
+  leagueLevel: number;
+  leagueName: string;
+  finalPosition: number;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  points: number;
+  promoted: boolean;
+  relegated: boolean;
+  createdAt: string;
+}
+
 interface GameState {
   // View management
   currentView: GameView;
@@ -157,6 +223,19 @@ interface GameState {
   leagueLevel: number;
   currentMatchDay: number;
   totalMatchDays: number;
+
+  // New data
+  dailyRewards: DailyRewardState[];
+  currentRewardDay: number;
+  rewardStreak: number;
+  canClaimReward: boolean;
+  achievements: AchievementState[];
+  scoutReports: ScoutReportState[];
+  news: NewsArticleState[];
+  newsUnreadCount: number;
+  seasonHistory: SeasonHistoryState[];
+  teamChemistry: number;
+  seasonSummary: Record<string, unknown> | null;
 
   // Match
   isMatchLive: boolean;
@@ -186,10 +265,32 @@ interface GameState {
   setLiveMatchData: (data: LiveMatchData | null) => void;
   setMatchResult: (data: LiveMatchData | null) => void;
   
+  // New actions
+  setDailyRewards: (rewards: DailyRewardState[]) => void;
+  setCurrentRewardDay: (day: number) => void;
+  setRewardStreak: (streak: number) => void;
+  setCanClaimReward: (can: boolean) => void;
+  setAchievements: (achievements: AchievementState[]) => void;
+  setScoutReports: (reports: ScoutReportState[]) => void;
+  setNews: (news: NewsArticleState[]) => void;
+  setNewsUnreadCount: (count: number) => void;
+  setSeasonHistory: (history: SeasonHistoryState[]) => void;
+  setTeamChemistry: (chemistry: number) => void;
+  setSeasonSummary: (summary: Record<string, unknown> | null) => void;
+  
   updateManagerCoins: (delta: number) => void;
   updateManagerGems: (delta: number) => void;
   updateManagerXP: (xp: number) => void;
   updatePlayer: (playerId: string, updates: Partial<PlayerState>) => void;
+  
+  fetchDailyRewards: () => Promise<void>;
+  claimDailyReward: () => Promise<void>;
+  fetchAchievements: () => Promise<void>;
+  fetchScoutReports: () => Promise<void>;
+  refreshScoutReports: () => Promise<void>;
+  fetchNews: () => Promise<void>;
+  markNewsRead: () => Promise<void>;
+  fetchSeasonHistory: () => Promise<void>;
   
   loadGameState: () => Promise<void>;
   resetGame: () => Promise<void>;
@@ -215,6 +316,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   isLoading: true,
   isInitialized: false,
 
+  // New state
+  dailyRewards: [],
+  currentRewardDay: 1,
+  rewardStreak: 0,
+  canClaimReward: false,
+  achievements: [],
+  scoutReports: [],
+  news: [],
+  newsUnreadCount: 0,
+  seasonHistory: [],
+  teamChemistry: 50,
+  seasonSummary: null,
+
   setView: (view) => set({ currentView: view }),
   setManager: (manager) => set({ manager }),
   setTeam: (team) => set({ team }),
@@ -233,6 +347,19 @@ export const useGameStore = create<GameState>((set, get) => ({
   setIsMatchLive: (live) => set({ isMatchLive: live }),
   setLiveMatchData: (data) => set({ liveMatchData: data }),
   setMatchResult: (data) => set({ matchResult: data }),
+
+  // New setters
+  setDailyRewards: (rewards) => set({ dailyRewards: rewards }),
+  setCurrentRewardDay: (day) => set({ currentRewardDay: day }),
+  setRewardStreak: (streak) => set({ rewardStreak: streak }),
+  setCanClaimReward: (can) => set({ canClaimReward: can }),
+  setAchievements: (achievements) => set({ achievements }),
+  setScoutReports: (reports) => set({ scoutReports: reports }),
+  setNews: (news) => set({ news }),
+  setNewsUnreadCount: (count) => set({ newsUnreadCount: count }),
+  setSeasonHistory: (history) => set({ seasonHistory: history }),
+  setTeamChemistry: (chemistry) => set({ teamChemistry: chemistry }),
+  setSeasonSummary: (summary) => set({ seasonSummary: summary }),
 
   updateManagerCoins: (delta) => set((state) => ({
     manager: state.manager ? { ...state.manager, coins: state.manager.coins + delta } : null,
@@ -257,6 +384,127 @@ export const useGameStore = create<GameState>((set, get) => ({
     players: state.players.map((p) => p.id === playerId ? { ...p, ...updates } : p),
   })),
 
+  fetchDailyRewards: async () => {
+    try {
+      const res = await fetch('/api/daily-reward');
+      if (res.ok) {
+        const data = await res.json();
+        set({
+          dailyRewards: data.rewards,
+          currentRewardDay: data.currentDay,
+          rewardStreak: data.streak,
+          canClaimReward: data.canClaim,
+        });
+      }
+    } catch (e) {
+      console.error('Failed to fetch daily rewards:', e);
+    }
+  },
+
+  claimDailyReward: async () => {
+    try {
+      const res = await fetch('/api/daily-reward', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const state = get();
+          set({
+            canClaimReward: false,
+            manager: state.manager ? {
+              ...state.manager,
+              coins: state.manager.coins + data.coins,
+              gems: state.manager.gems + data.gems,
+            } : null,
+            dailyRewards: state.dailyRewards.map(r =>
+              r.day === state.currentRewardDay ? { ...r, isClaimed: true, claimedAt: new Date().toISOString() } : r
+            ),
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to claim daily reward:', e);
+    }
+  },
+
+  fetchAchievements: async () => {
+    try {
+      const res = await fetch('/api/achievements');
+      if (res.ok) {
+        const data = await res.json();
+        set({ achievements: data.achievements });
+      }
+    } catch (e) {
+      console.error('Failed to fetch achievements:', e);
+    }
+  },
+
+  fetchScoutReports: async () => {
+    try {
+      const res = await fetch('/api/scout');
+      if (res.ok) {
+        const data = await res.json();
+        set({ scoutReports: data.reports });
+      }
+    } catch (e) {
+      console.error('Failed to fetch scout reports:', e);
+    }
+  },
+
+  refreshScoutReports: async () => {
+    try {
+      const res = await fetch('/api/scout', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.success) {
+          const state = get();
+          set({
+            scoutReports: data.reports,
+            manager: state.manager ? { ...state.manager, gems: state.manager.gems - 15 } : null,
+          });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to refresh scout reports:', e);
+    }
+  },
+
+  fetchNews: async () => {
+    try {
+      const res = await fetch('/api/news');
+      if (res.ok) {
+        const data = await res.json();
+        set({ news: data.news, newsUnreadCount: data.unreadCount });
+      }
+    } catch (e) {
+      console.error('Failed to fetch news:', e);
+    }
+  },
+
+  markNewsRead: async () => {
+    try {
+      await fetch('/api/news', { method: 'POST' });
+      set({ newsUnreadCount: 0, news: get().news.map(n => ({ ...n, isRead: true })) });
+    } catch (e) {
+      console.error('Failed to mark news as read:', e);
+    }
+  },
+
+  fetchSeasonHistory: async () => {
+    try {
+      const manager = get().manager;
+      if (!manager) return;
+      const res = await fetch('/api/game/state');
+      if (res.ok) {
+        const data = await res.json();
+        if (data.seasonHistory) {
+          set({ seasonHistory: data.seasonHistory });
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch season history:', e);
+    }
+  },
+
   loadGameState: async () => {
     set({ isLoading: true });
     try {
@@ -275,7 +523,44 @@ export const useGameStore = create<GameState>((set, get) => ({
             currentMatchDay: data.currentMatchDay || 1,
             isInitialized: true,
             currentView: 'home',
+            seasonHistory: data.seasonHistory || [],
           });
+
+          // Calculate team chemistry
+          const { calculateTeamChemistry } = await import('@/lib/game-engine');
+          const players = data.players || [];
+          const team = data.team;
+          if (team && players.length > 0) {
+            const chemistry = calculateTeamChemistry({
+              name: team.name,
+              logo: team.logo,
+              formation: team.formation,
+              morale: team.morale,
+              fanSupport: team.fanSupport,
+              players: players.map((p: PlayerState) => ({
+                name: p.name,
+                position: p.position,
+                overall: p.overall,
+                pace: p.pace,
+                shooting: p.shooting,
+                passing: p.passing,
+                dribbling: p.dribbling,
+                defending: p.defending,
+                physical: p.physical,
+                stamina: p.stamina,
+                form: p.form,
+                morale: p.morale,
+                isInjured: p.isInjured,
+              })),
+            });
+            set({ teamChemistry: chemistry });
+          }
+
+          // Fetch new features data in background
+          get().fetchDailyRewards();
+          get().fetchAchievements();
+          get().fetchScoutReports();
+          get().fetchNews();
         } else {
           set({ currentView: 'create-team', isInitialized: true });
         }
@@ -306,6 +591,14 @@ export const useGameStore = create<GameState>((set, get) => ({
         matchResult: null,
         currentView: 'create-team',
         isInitialized: true,
+        dailyRewards: [],
+        achievements: [],
+        scoutReports: [],
+        news: [],
+        newsUnreadCount: 0,
+        seasonHistory: [],
+        teamChemistry: 50,
+        seasonSummary: null,
       });
     } catch (e) {
       console.error('Failed to reset game:', e);

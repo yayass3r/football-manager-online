@@ -152,6 +152,24 @@ export async function GET() {
       })),
       leagueLevel,
       currentMatchDay,
+      seasonHistory: (await db.seasonHistory.findMany({
+        where: { managerId: manager.id },
+        orderBy: { season: 'desc' },
+      })).map(sh => ({
+        id: sh.id,
+        season: sh.season,
+        leagueLevel: sh.leagueLevel,
+        leagueName: sh.leagueName,
+        finalPosition: sh.finalPosition,
+        played: sh.played,
+        won: sh.won,
+        drawn: sh.drawn,
+        lost: sh.lost,
+        points: sh.points,
+        promoted: sh.promoted,
+        relegated: sh.relegated,
+        createdAt: sh.createdAt,
+      })),
     });
   } catch (error) {
     console.error('State error:', error);

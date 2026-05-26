@@ -167,7 +167,92 @@ function generateCommentary(type: string, commentaries: string[]): string {
   return commentaries[Math.floor(Math.random() * commentaries.length)];
 }
 
-export function simulateMatch(homeTeam: MatchTeam, awayTeam: MatchTeam): MatchResult {
+// Calculate team chemistry based on position fit, morale, form, and formation
+export function calculateTeamChemistry(team: MatchTeam): number {
+  if (team.players.length === 0) return 30;
+
+  const formationPositions = getFormationPositions(team.formation);
+  const activePlayers = team.players.filter(p => !p.isInjured);
+  if (activePlayers.length === 0) return 30;
+
+  // 1. Position fit: how many players are in their natural position
+  let positionFitScore = 0;
+  const positionSlots = formationPositions.map(fp => fp.position);
+  const positionCategories: Record<string, string[]> = {
+    'GK': ['GK'],
+    'DEF': ['CB', 'LB', 'RB', 'LWB', 'RWB'],
+    'MID': ['CDM', 'CM', 'CAM', 'LM', 'RM'],
+    'ATT': ['ST', 'LW', 'RW', 'CF'],
+  };
+
+  for (const slotPos of positionSlots) {
+    const slotCategory = Object.entries(positionCategories).find(([_, positions]) => positions.includes(slotPos))?.[0] || 'MID';
+    const matchingPlayer = activePlayers.find(p => {
+      const playerCategory = Object.entries(positionCategories).find(([_, positions]) => positions.includes(p.position))?.[0] || 'MID';
+      return playerCategory === slotCategory;
+    });
+    if (matchingPlayer) positionFitScore++;
+  }
+  const positionFitRatio = positionFitScore / Math.max(1, positionSlots.length);
+
+  // 2. Average morale and form
+  const avgMorale = activePlayers.reduce((sum, p) => sum + p.morale, 0) / activePlayers.length;
+  const avgForm = activePlayers.reduce((sum, p) => sum + p.form, 0) / activePlayers.length;
+
+  // 3. Team morale
+  const teamMoraleFactor = team.morale / 100;
+
+  // Combine factors
+  const chemistry = Math.round(
+    positionFitRatio * 35 +  // 35% weight for position fit
+    (avgMorale / 100) * 25 + // 25% weight for player morale
+    (avgForm / 100) * 20 +   // 20% weight for form
+    teamMoraleFactor * 20     // 20% weight for team morale
+  );
+
+  return Math.max(0, Math.min(100, chemistry));
+}
+
+// Tactics modifiers based on attacking style, pressing, tempo
+export interface TacticsModifiers {
+  attackingStyle: 'defensive' | 'balanced' | 'attacking';
+  pressingIntensity: 'low' | 'medium' | 'high';
+  tempo: 'slow' | 'normal' | 'fast';
+}
+
+export function getTacticsModifier(tactics: TacticsModifiers): {
+  attackMod: number;
+  defenseMod: number;
+  possessionMod: number;
+  staminaDrain: number;
+} {
+  const attackMod =
+    tactics.attackingStyle === 'attacking' ? 1.15 :
+    tactics.attackingStyle === 'defensive' ? 0.85 : 1.0;
+
+  const defenseMod =
+    tactics.attackingStyle === 'defensive' ? 1.15 :
+    tactics.attackingStyle === 'attacking' ? 0.85 : 1.0;
+
+  const possessionMod =
+    tactics.pressingIntensity === 'high' ? 1.1 :
+    tactics.pressingIntensity === 'low' ? 0.9 : 1.0;
+
+  const staminaDrain =
+    tactics.tempo === 'fast' ? 1.2 :
+    tactics.tempo === 'slow' ? 0.8 : 1.0;
+
+  return { attackMod, defenseMod, possessionMod, staminaDrain };
+}
+
+export function simulateMatch(
+  homeTeam: MatchTeam,
+  awayTeam: MatchTeam,
+  homeChemistry?: number,
+  awayChemistry?: number,
+  homeTactics?: TacticsModifiers,
+  awayTactics?: TacticsModifiers,
+): MatchResult {
   const events: MatchEvent[] = [];
   const homeStats: TeamMatchStats = {
     possession: 0, shots: 0, shotsOnTarget: 0, corners: 0,
@@ -188,11 +273,24 @@ export function simulateMatch(homeTeam: MatchTeam, awayTeam: MatchTeam): MatchRe
   const awayMidfield = getMidfieldStrength(awayTeam);
   const awayGK = getGKStrength(homeTeam);
 
-  const homeAdvantage = 1.08;
-  const homeGoalProb = Math.max(0.02, ((homeAttack * homeAdvantage - awayDefense * 0.7) / 100) * 0.045);
-  const awayGoalProb = Math.max(0.02, ((awayAttack - homeDefense * 0.7 * homeAdvantage) / 100) * 0.045);
+  // Calculate chemistry bonuses
+  const hChemistry = homeChemistry ?? calculateTeamChemistry(homeTeam);
+  const aChemistry = awayChemistry ?? calculateTeamChemistry(awayTeam);
+  const chemistryBonusHome = 1 + (hChemistry - 50) / 200; // -0.25 to +0.25
+  const chemistryBonusAway = 1 + (aChemistry - 50) / 200;
 
-  const midfieldBalance = (homeMidfield * homeAdvantage) / (homeMidfield * homeAdvantage + awayMidfield + 0.01);
+  // Apply tactics modifiers
+  const hTactics = homeTactics ?? { attackingStyle: 'balanced', pressingIntensity: 'medium', tempo: 'normal' };
+  const aTactics = awayTactics ?? { attackingStyle: 'balanced', pressingIntensity: 'medium', tempo: 'normal' };
+  const hMods = getTacticsModifier(hTactics);
+  const aMods = getTacticsModifier(aTactics);
+
+  const homeAdvantage = 1.08;
+  const homeGoalProb = Math.max(0.02, ((homeAttack * homeAdvantage * chemistryBonusHome * hMods.attackMod - awayDefense * 0.7 * aMods.defenseMod) / 100) * 0.045);
+  const awayGoalProb = Math.max(0.02, ((awayAttack * chemistryBonusAway * aMods.attackMod - homeDefense * 0.7 * homeAdvantage * hMods.defenseMod) / 100) * 0.045);
+
+  const midfieldBalance = (homeMidfield * homeAdvantage * chemistryBonusHome * hMods.possessionMod) / 
+    (homeMidfield * homeAdvantage * chemistryBonusHome * hMods.possessionMod + awayMidfield * chemistryBonusAway * aMods.possessionMod + 0.01);
   homeStats.possession = Math.round(midfieldBalance * 100);
   awayStats.possession = 100 - homeStats.possession;
 

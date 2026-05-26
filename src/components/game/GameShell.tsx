@@ -10,18 +10,31 @@ import { MatchCenter } from './MatchCenter';
 import { LeagueTable } from './LeagueTable';
 import { TrainingCenter } from './TrainingCenter';
 import { StadiumView } from './StadiumView';
-import { Badge } from '@/components/ui/badge';
+import { DailyRewards } from './DailyRewards';
+import { Achievements } from './Achievements';
+import { ScoutCenter } from './ScoutCenter';
+import { NewsFeed } from './NewsFeed';
+import { SeasonSummary } from './SeasonSummary';
 import { Button } from '@/components/ui/button';
 
-const navItems: { view: GameView; label: string; icon: string }[] = [
+const mainNavItems: { view: GameView; label: string; icon: string }[] = [
   { view: 'home', label: 'الرئيسية', icon: '🏠' },
   { view: 'squad', label: 'الفريق', icon: '👥' },
   { view: 'tactics', label: 'التكتيكات', icon: '📋' },
   { view: 'match', label: 'المباريات', icon: '⚽' },
   { view: 'league', label: 'الدوري', icon: '🏆' },
+];
+
+const moreNavItems: { view: GameView; label: string; icon: string }[] = [
   { view: 'transfers', label: 'الانتقالات', icon: '💰' },
   { view: 'training', label: 'التدريب', icon: '🏋️' },
   { view: 'stadium', label: 'الملعب', icon: '🏟️' },
+  { view: 'scout', label: 'الكشافة', icon: '🔍' },
+  { view: 'achievements', label: 'الإنجازات', icon: '🏅' },
+  { view: 'daily-rewards', label: 'المكافآت', icon: '🎁' },
+  { view: 'news', label: 'الأخبار', icon: '📰' },
+  { view: 'season-summary', label: 'المواسم', icon: '📊' },
+  { view: 'settings', label: 'الإعدادات', icon: '⚙️' },
 ];
 
 export function GameShell() {
@@ -30,6 +43,11 @@ export function GameShell() {
   const team = useGameStore((s) => s.team);
   const setView = useGameStore((s) => s.setView);
   const resetGame = useGameStore((s) => s.resetGame);
+  const canClaimReward = useGameStore((s) => s.canClaimReward);
+  const newsUnreadCount = useGameStore((s) => s.newsUnreadCount);
+  const currentMatchDay = useGameStore((s) => s.currentMatchDay);
+  const totalMatchDays = useGameStore((s) => s.totalMatchDays);
+  const fetchNews = useGameStore((s) => s.fetchNews);
 
   if (!manager || !team) {
     return <CreateTeam />;
@@ -45,6 +63,11 @@ export function GameShell() {
       case 'league': return <LeagueTable />;
       case 'training': return <TrainingCenter />;
       case 'stadium': return <StadiumView />;
+      case 'daily-rewards': return <DailyRewards />;
+      case 'achievements': return <Achievements />;
+      case 'scout': return <ScoutCenter />;
+      case 'news': return <NewsFeed />;
+      case 'season-summary': return <SeasonSummary />;
       case 'settings': return (
         <div className="space-y-4 pb-4">
           <h2 className="text-white font-bold text-lg">الإعدادات</h2>
@@ -93,10 +116,12 @@ export function GameShell() {
     }
   };
 
+  const isMoreActive = moreNavItems.some(item => item.view === currentView);
+
   return (
     <div className="min-h-screen bg-slate-900 flex flex-col">
       {/* Top Bar */}
-      <header className="bg-slate-800/95 backdrop-blur-md border-b border-slate-700 px-4 py-2 flex items-center justify-between sticky top-0 z-50">
+      <header className="bg-slate-800/95 backdrop-blur-md border-b border-slate-700 px-3 py-2 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
           <div
             className="w-8 h-8 rounded-lg flex items-center justify-center text-lg shadow"
@@ -107,19 +132,51 @@ export function GameShell() {
           <span className="text-white font-bold text-sm">{team.name}</span>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="flex items-center gap-1 bg-slate-900/50 rounded-full px-2.5 py-1">
+        <div className="flex items-center gap-2">
+          {/* Season Progress Badge */}
+          <div className="hidden sm:flex items-center gap-1 bg-slate-900/50 rounded-full px-2 py-1">
+            <span className="text-emerald-400 text-[10px]">📅</span>
+            <span className="text-white text-[10px] font-bold">ج{currentMatchDay}/{totalMatchDays}</span>
+          </div>
+
+          <div className="flex items-center gap-1 bg-slate-900/50 rounded-full px-2 py-1">
             <span className="text-amber-400 text-xs">🪙</span>
             <span className="text-white text-xs font-bold">{(manager.coins / 1000000).toFixed(1)}M</span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-900/50 rounded-full px-2.5 py-1">
+          <div className="flex items-center gap-1 bg-slate-900/50 rounded-full px-2 py-1">
             <span className="text-purple-400 text-xs">💎</span>
             <span className="text-white text-xs font-bold">{manager.gems}</span>
           </div>
-          <div className="flex items-center gap-1 bg-slate-900/50 rounded-full px-2.5 py-1">
-            <span className="text-emerald-400 text-xs">⭐</span>
-            <span className="text-white text-xs font-bold">Lv.{manager.level}</span>
-          </div>
+
+          {/* Daily Reward Indicator */}
+          <button
+            onClick={() => setView('daily-rewards')}
+            className={`relative p-1 rounded-lg transition-all ${
+              canClaimReward ? 'animate-pulse-glow bg-emerald-500/20' : 'hover:bg-slate-700'
+            }`}
+          >
+            <span className="text-base">🎁</span>
+            {canClaimReward && (
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse" />
+            )}
+          </button>
+
+          {/* News Bell */}
+          <button
+            onClick={() => {
+              setView('news');
+              fetchNews();
+            }}
+            className="relative p-1 rounded-lg hover:bg-slate-700 transition-all"
+          >
+            <span className="text-base">🔔</span>
+            {newsUnreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[14px] h-[14px] bg-red-500 rounded-full flex items-center justify-center text-[8px] text-white font-bold px-0.5">
+                {newsUnreadCount > 9 ? '9+' : newsUnreadCount}
+              </span>
+            )}
+          </button>
+
           <Button
             size="sm"
             variant="ghost"
@@ -139,7 +196,7 @@ export function GameShell() {
       {/* Bottom Navigation */}
       <nav className="bg-slate-800/95 backdrop-blur-md border-t border-slate-700 px-2 py-1 sticky bottom-0 z-50">
         <div className="flex items-center justify-around">
-          {navItems.map((item) => (
+          {mainNavItems.map((item) => (
             <button
               key={item.view}
               onClick={() => setView(item.view)}
@@ -153,6 +210,46 @@ export function GameShell() {
               <span className="text-[9px] font-medium">{item.label}</span>
             </button>
           ))}
+
+          {/* More menu button */}
+          <div className="relative group">
+            <button
+              className={`flex flex-col items-center gap-0.5 py-1.5 px-2 rounded-lg transition-all ${
+                isMoreActive
+                  ? 'text-emerald-400 bg-emerald-500/10'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <span className="text-base">⋯</span>
+              <span className="text-[9px] font-medium">المزيد</span>
+            </button>
+
+            {/* Dropdown */}
+            <div className="absolute bottom-full right-0 mb-2 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl p-1.5 min-w-[160px] opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              {moreNavItems.map((item) => (
+                <button
+                  key={item.view}
+                  onClick={() => setView(item.view)}
+                  className={`flex items-center gap-2 w-full px-3 py-2 rounded-lg text-right transition-all ${
+                    currentView === item.view
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'text-slate-300 hover:bg-slate-700 hover:text-white'
+                  }`}
+                >
+                  <span>{item.icon}</span>
+                  <span className="text-sm">{item.label}</span>
+                  {item.view === 'daily-rewards' && canClaimReward && (
+                    <span className="mr-auto w-2 h-2 bg-emerald-400 rounded-full animate-pulse" />
+                  )}
+                  {item.view === 'news' && newsUnreadCount > 0 && (
+                    <span className="mr-auto bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
+                      {newsUnreadCount}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
       </nav>
     </div>

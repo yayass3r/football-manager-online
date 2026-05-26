@@ -18,6 +18,9 @@ model Manager {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   team         Team?
+  achievements ManagerAchievement[]
+  dailyRewards DailyReward[]
+  seasonHistory SeasonHistory[]
 }
 
 model Team {
@@ -151,4 +154,81 @@ model Notification {
   type      String
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
+}
+
+model Achievement {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  title       String
+  description String
+  icon        String
+  category    String
+  target      Int
+  reward      Int
+  createdAt   DateTime @default(now())
+  managerAchievements ManagerAchievement[]
+}
+
+model ManagerAchievement {
+  id            String      @id @default(cuid())
+  managerId     String
+  achievementId String
+  progress      Int         @default(0)
+  isCompleted   Boolean     @default(false)
+  completedAt   DateTime?
+  achievement   Achievement @relation(fields: [achievementId], references: [id])
+  manager       Manager     @relation(fields: [managerId], references: [id])
+}
+
+model DailyReward {
+  id         String    @id @default(cuid())
+  managerId  String
+  day        Int
+  isClaimed  Boolean   @default(false)
+  coins      Int
+  gems       Int
+  claimedAt  DateTime?
+  manager    Manager   @relation(fields: [managerId], references: [id])
+}
+
+model ScoutReport {
+  id          String   @id @default(cuid())
+  playerName  String
+  position    String
+  overall     Int
+  potential   Int
+  nationality String
+  age         Int
+  askingPrice Int
+  scoutRating Int
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
+
+model SeasonHistory {
+  id             String   @id @default(cuid())
+  managerId      String
+  season         Int
+  leagueLevel    Int
+  leagueName     String
+  finalPosition  Int
+  played         Int
+  won            Int
+  drawn          Int
+  lost           Int
+  points         Int
+  promoted       Boolean  @default(false)
+  relegated      Boolean  @default(false)
+  createdAt      DateTime @default(now())
+  manager        Manager  @relation(fields: [managerId], references: [id])
+}
+
+model NewsArticle {
+  id         String   @id @default(cuid())
+  title      String
+  content    String
+  category   String
+  imageEmoji String   @default("")
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
 }
