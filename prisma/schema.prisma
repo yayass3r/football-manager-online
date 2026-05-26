@@ -1,0 +1,154 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Manager {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  avatar       String?
+  coins        Int      @default(5000000)
+  gems         Int      @default(100)
+  level        Int      @default(1)
+  xp           Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  team         Team?
+}
+
+model Team {
+  id             String   @id @default(cuid())
+  name           String
+  shortName      String   @default("")
+  logo           String   @default("⚽")
+  primaryColor   String   @default("#1a7a2e")
+  secondaryColor String   @default("#ffffff")
+  formation      String   @default("4-4-2")
+  managerId      String   @unique
+  morale         Int      @default(75)
+  fanSupport     Int      @default(50)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  manager        Manager  @relation(fields: [managerId], references: [id], onDelete: Cascade)
+  players        Player[]
+  stadium        Stadium?
+}
+
+model Player {
+  id            String   @id @default(cuid())
+  name          String
+  position      String
+  nationality   String   @default("")
+  age           Int
+  overall       Int
+  pace          Int      @default(50)
+  shooting      Int      @default(50)
+  passing       Int      @default(50)
+  dribbling     Int      @default(50)
+  defending     Int      @default(50)
+  physical      Int      @default(50)
+  stamina       Int      @default(80)
+  morale        Int      @default(75)
+  form          Int      @default(75)
+  value         Int      @default(1000000)
+  salary        Int      @default(50000)
+  isInjured     Boolean  @default(false)
+  injuryWeeks   Int      @default(0)
+  isOnTransfer  Boolean  @default(false)
+  transferPrice Int?
+  teamId        String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  team          Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model Stadium {
+  id             String   @id @default(cuid())
+  name           String   @default("ملعب الفريق")
+  capacity       Int      @default(10000)
+  level          Int      @default(1)
+  ticketPrice    Int      @default(50)
+  facilities     Int      @default(1)
+  youthAcademy   Int      @default(1)
+  trainingGround Int      @default(1)
+  medicalCenter  Int      @default(1)
+  teamId         String   @unique
+  team           Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+}
+
+model League {
+  id         String   @id @default(cuid())
+  name       String
+  level      Int
+  season     Int      @default(1)
+  maxTeams   Int      @default(20)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  standings  LeagueStanding[]
+  matches    Match[]
+}
+
+model LeagueStanding {
+  id           String   @id @default(cuid())
+  leagueId     String
+  teamName     String
+  teamLogo     String   @default("⚽")
+  teamId       String   @default("")
+  played       Int      @default(0)
+  won          Int      @default(0)
+  drawn        Int      @default(0)
+  lost         Int      @default(0)
+  goalsFor     Int      @default(0)
+  goalsAgainst Int      @default(0)
+  points       Int      @default(0)
+  league       League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+}
+
+model Match {
+  id           String   @id @default(cuid())
+  leagueId     String
+  homeTeam     String
+  homeTeamLogo String   @default("⚽")
+  awayTeam     String
+  awayTeamLogo String   @default("⚽")
+  homeGoals    Int      @default(0)
+  awayGoals    Int      @default(0)
+  matchDay     Int
+  isPlayed     Boolean  @default(false)
+  events       String   @default("[]")
+  createdAt    DateTime @default(now())
+  league       League   @relation(fields: [leagueId], references: [id], onDelete: Cascade)
+}
+
+model TransferListing {
+  id          String   @id @default(cuid())
+  playerId    String
+  playerName  String
+  position    String
+  overall     Int
+  askingPrice Int
+  sellerTeam  String
+  createdAt   DateTime @default(now())
+  expiresAt   DateTime
+}
+
+model TrainingSession {
+  id        String   @id @default(cuid())
+  type      String
+  cost      Int
+  duration  Int
+  createdAt DateTime @default(now())
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
